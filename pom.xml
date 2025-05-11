@@ -16,5 +16,10 @@
             <artifactId>msal4j</artifactId>
             <version>1.20.1</version> <!-- Check for the latest version -->
         </dependency>
+        <dependency>
+            <groupId>com.pusher</groupId>
+            <artifactId>pusher-java-client</artifactId>
+            <version>2.4.4</version>
+        </dependency>
     </dependencies>
 </project>
