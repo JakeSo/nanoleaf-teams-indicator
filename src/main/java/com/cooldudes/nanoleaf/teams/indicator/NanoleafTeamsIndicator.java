@@ -13,7 +13,7 @@ import java.util.*;
  */
 public class NanoleafTeamsIndicator {
 
-    private static final String ACCESS_TOKEN = "dq3kywKI2eYET1S1SdVanhVCP5149Mhw";
+    private static String ACCESS_TOKEN;
     private static NanoleafShapes shapes;
 
     //TODO DoNotDisturb dark red palette
