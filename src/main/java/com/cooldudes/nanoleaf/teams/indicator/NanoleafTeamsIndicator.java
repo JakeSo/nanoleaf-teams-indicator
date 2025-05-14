@@ -5,7 +5,9 @@
 package com.cooldudes.nanoleaf.teams.indicator;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 
 /**
  *
@@ -36,8 +38,9 @@ public class NanoleafTeamsIndicator {
             })
     );
 
-    public static void main(String[] args) {
-        try {
+    public static void main(String[] args) throws IOException, URISyntaxException, ExecutionException, InterruptedException {
+        Graph.initialize(RandomGenerators.generateRandomString(10));
+        /*try {
 //            List<NanoleafDeviceMeta> devices = NanoleafSetup.findNanoleafDevices(5);
 //            NanoleafDeviceMeta selectedNano = null;
 //            if (devices.size() == 1) {
@@ -53,7 +56,7 @@ public class NanoleafTeamsIndicator {
             setStatusEffect("Available", "Available");
         } catch (Exception e) {
             System.out.println("Error: " + e);
-        }
+        }*/
     }
 
     public static void setStatusEffect(String availability, String activity) {
