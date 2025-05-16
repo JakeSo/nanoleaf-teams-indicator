@@ -16,13 +16,14 @@ public class NanoleafTeamsIndicator {
 
     private static String ACCESS_TOKEN;
     private static NanoleafShapes shapes;
+    private static String clientState = RandomGenerators.generateRandomString(10);
 
-    public static void main(String[] args) throws IOException, URISyntaxException, ExecutionException, InterruptedException {
+    public static void main(String[] args)  {
         try {
-            Graph.initialize(RandomGenerators.generateRandomString(10));
-            String ip = "192.168.1.207";
-            NanoleafShapes shapes = new NanoleafShapes(ip, ACCESS_TOKEN);
-            new SocketConnection("jake.sorrentino@remasonco.com", shapes);
+            Graph.initialize(clientState);
+//            String ip = "192.168.1.207";
+//            NanoleafShapes shapes = new NanoleafShapes(ip, ACCESS_TOKEN);
+            new SocketConnection(clientState, shapes);
         } catch (Exception e) {
             System.out.println("Error: " + e);
         }

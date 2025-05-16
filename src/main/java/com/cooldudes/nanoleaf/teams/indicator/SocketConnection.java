@@ -7,6 +7,8 @@ import com.pusher.client.channel.Channel;
 import com.pusher.client.connection.ConnectionEventListener;
 import com.pusher.client.connection.ConnectionState;
 import com.pusher.client.connection.ConnectionStateChange;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.naming.ConfigurationException;
 import java.io.FileReader;
@@ -15,22 +17,24 @@ import java.util.Properties;
 
 public class SocketConnection {
 
+    private static final Logger log = LoggerFactory.getLogger(SocketConnection.class);
     private String PUSHER_KEY;
     private String PUSHER_CLUSTER;
     private final Pusher pusher;
 
-    public SocketConnection(String userId, StatusChangeHandler changeHandler) throws ConfigurationException {
+    public SocketConnection(String clientState, StatusChangeHandler changeHandler) throws ConfigurationException {
         try {
             setupProperties();
             pusher = getPusher();
-            Channel channel = pusher.subscribe("status-changes");
-            channel.bind(userId, pusherEvent -> {
+            Channel channel = pusher.subscribe("status-changes-" + clientState);
+            channel.bind("status-change", pusherEvent -> {
                 try {
+                    System.out.println("Received event: " + pusherEvent.toJson());
                     Object eventObject = JSONUtils.parseJSON(pusherEvent.toJson());
-                    Presence presence = JSONUtils.to(eventObject, Presence.class);
-                    changeHandler.handleStatusChange(presence);
+//                    Presence presence = JSONUtils.to(eventObject, Presence.class);
+//                    changeHandler.handleStatusChange(presence);
                 } catch (Exception ex) {
-                    System.err.println(ex);
+                    log.error("Error subscribing: ", ex);
                     System.err.println("Event: \n" + pusherEvent.toString());
                 }
             });
@@ -64,7 +68,7 @@ public class SocketConnection {
     }
 
     private void setupProperties() throws IOException {
-        FileReader reader = new FileReader("pusher.properties");
+        FileReader reader = new FileReader("src/main/resources/pusher.properties");
         // create properties object
         Properties p = new Properties();
         p.load(reader);
