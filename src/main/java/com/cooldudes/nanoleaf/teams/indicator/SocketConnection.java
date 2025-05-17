@@ -8,8 +8,6 @@ import com.pusher.client.connection.ConnectionEventListener;
 import com.pusher.client.connection.ConnectionState;
 import com.pusher.client.connection.ConnectionStateChange;
 import net.minidev.json.JSONObject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javax.naming.ConfigurationException;
 import java.io.FileReader;
@@ -35,6 +33,7 @@ public class SocketConnection {
                     JSONObject eventObject = (JSONObject) JSONUtils.parseJSON(pusherEvent.getData());
                     EncryptedData data = new EncryptedData(eventObject);
                     Presence presence = data.decryptData();
+
                     changeHandler.handleStatusChange(presence);
                 } catch (Exception ex) {
                     System.out.println("Error parsing event data: " + ex.getMessage() + ", " + ex.getStackTrace()[0]);

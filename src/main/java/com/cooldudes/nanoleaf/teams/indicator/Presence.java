@@ -9,4 +9,11 @@ public class Presence {
         this.availability = availability;
         this.activity = activity;
     }
+
+    @Override
+    public String toString() {
+        return "Presence{" + "availability='" + availability + '\'' +
+                ", activity='" + activity + '\'' +
+                '}';
+    }
 }

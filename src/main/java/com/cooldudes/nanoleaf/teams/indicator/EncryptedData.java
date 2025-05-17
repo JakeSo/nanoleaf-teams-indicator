@@ -52,12 +52,11 @@ public class EncryptedData {
         } catch (Exception e) {
             throw new Exception("Could not read properties for keystore", e);
         }
-        String storename = "src/main/resources/JKSkeystore.jks"; //name/path of the jks store
-        String alias = this.encryptionCertificateId; //alias of the certificate when store in the jks store, should be passed as encryptionCertificateId when subscribing and retrieved from the notification
+        String storename = "src/main/resources/keystore.jks"; //name/path of the jks store
         try {
             KeyStore ks = KeyStore.getInstance("JKS");
             ks.load(new FileInputStream(storename), storepass.toCharArray());
-            Key asymmetricKey = ks.getKey(alias, storepass.toCharArray());
+            Key asymmetricKey = ks.getKey(this.encryptionCertificateId, storepass.toCharArray());
             byte[] encryptedSymmetricKey = Base64.getDecoder().decode(this.dataKey);
             Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA1AndMGF1Padding");
             cipher.init(Cipher.DECRYPT_MODE, asymmetricKey);

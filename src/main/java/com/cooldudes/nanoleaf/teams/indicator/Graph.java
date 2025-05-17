@@ -58,8 +58,6 @@ public class Graph {
         }
         // Print the access token
         System.out.println("Login successful!");
-
-        System.out.println(userId);
         createSubscription(accessToken, session, userId);
     }
 
@@ -116,8 +114,8 @@ public class Graph {
             requestBody.put("notificationUrl", p.getProperty("subUrl"));
             requestBody.put("includeResourceData", true);
             requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(10).toString());
-            requestBody.put("encryptionCertificate",  CertificateUtil.getBase64EncodedCertificate("src/main/resources/certificate.pem"));
-            requestBody.put("encryptionCertificateId", "jake");
+            requestBody.put("encryptionCertificate",  CertificateUtil.getBase64EncodedCertificate("src/main/resources/public-cert.pem"));
+            requestBody.put("encryptionCertificateId", "nano");
             requestBody.put("clientState", session);
 
             ObjectMapper objectMapper = new ObjectMapper();
@@ -134,7 +132,7 @@ public class Graph {
             if (response.statusCode() < 300) {
                 System.out.println("Successfully subscribed!");
             } else if (response.statusCode() == 409) {
-                updateSubscription(client, p.getProperty("subUrl"), userId, accessToken, requestBodyJson);
+                updateSubscription(client, accessToken, session, p);
             } else {
                 System.err.println(response.body());
             }
@@ -148,16 +146,18 @@ public class Graph {
     }
 
 
-    private static void updateSubscription(HttpClient client,String url, String id, String token, String body) throws IOException, InterruptedException {
-
-        Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("notificationUrl",url);
+    private static void updateSubscription(HttpClient client, String token, String session, Properties p) throws IOException, InterruptedException {
+        String id = p.getProperty("subscriptionId");
+        Map<String, Object> updateBody = new HashMap<>();
+        updateBody.put("notificationUrl", p.getProperty("subUrl"));
+        updateBody.put("clientState", session);
+        String body = new ObjectMapper().writeValueAsString(updateBody);
         HttpRequest subscriptionRequest = HttpRequest.newBuilder()
                 .uri(URI.create("https://graph.microsoft.com/v1.0/subscriptions/" + id))
                 .header("Authorization", "Bearer " + token)
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
-                .method("PATCH", HttpRequest.BodyPublishers.ofString(new ObjectMapper().writeValueAsString(requestBody), StandardCharsets.UTF_8))
+                .method("PATCH", HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                 .build();
         HttpResponse<String> response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() > 300) {
