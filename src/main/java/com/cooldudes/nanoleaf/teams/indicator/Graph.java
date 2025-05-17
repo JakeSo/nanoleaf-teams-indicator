@@ -47,7 +47,7 @@ public class Graph {
 
             IAuthenticationResult result = pca.acquireToken(parameters).get();
             accessToken = result.accessToken();
-            userId = result.account().homeAccountId();
+            userId = result.account().homeAccountId().split("\\.")[0];
             p.setProperty("accessToken",accessToken);
             p.setProperty("userId",userId);
             p.store(new FileOutputStream("src/main/resources/oAuth.properties"), null);
@@ -61,28 +61,30 @@ public class Graph {
     }
 
     public static String getUser(String token) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newHttpClient();
+        HttpResponse<String> presenceResponse;
+        try (HttpClient client = HttpClient.newHttpClient()) {
 
-        // Step 1: Get user details (name, email)
-        HttpRequest userRequest = HttpRequest.newBuilder()
-                .uri(URI.create("https://graph.microsoft.com/v1.0/me?$select=displayName"))
+            // Step 1: Get user details (name, email)
+            HttpRequest userRequest = HttpRequest.newBuilder()
+                    .uri(URI.create("https://graph.microsoft.com/v1.0/me?$select=displayName"))
 
-                .header("Authorization", "Bearer " + token)
-                .header("Accept", "application/json;odata.metadata=none")
-                .GET()
-                .build();
+                    .header("Authorization", "Bearer " + token)
+                    .header("Accept", "application/json;odata.metadata=none")
+                    .GET()
+                    .build();
 
-        HttpResponse<String> userResponse = client.send(userRequest, HttpResponse.BodyHandlers.ofString());
-        System.out.println("User Info: " + userResponse.body());
+            HttpResponse<String> userResponse = client.send(userRequest, HttpResponse.BodyHandlers.ofString());
+            System.out.println("User Info: " + userResponse.body());
 
-        // Step 2: Get presence status
-        HttpRequest presenceRequest = HttpRequest.newBuilder()
-                .uri(URI.create("https://graph.microsoft.com/v1.0/me/presence"))
-                .header("Authorization", "Bearer " + token)
-                .header("Accept", "application/json;odata.metadata=none")
-                .GET()
-                .build();
-        HttpResponse<String> presenceResponse = client.send(presenceRequest, HttpResponse.BodyHandlers.ofString());
+            // Step 2: Get presence status
+            HttpRequest presenceRequest = HttpRequest.newBuilder()
+                    .uri(URI.create("https://graph.microsoft.com/v1.0/me/presence"))
+                    .header("Authorization", "Bearer " + token)
+                    .header("Accept", "application/json;odata.metadata=none")
+                    .GET()
+                    .build();
+            presenceResponse = client.send(presenceRequest, HttpResponse.BodyHandlers.ofString());
+        }
         System.out.println("Presence Info: " + presenceResponse.body());
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode jsonNode = objectMapper.readTree(presenceResponse.body());
@@ -113,7 +115,7 @@ public class Graph {
             String requestBodyJson = objectMapper.writeValueAsString(requestBody);
 
             HttpRequest subscriptionRequest = HttpRequest.newBuilder()
-                    .uri(URI.create("https://graph.microsoft.com/beta/subscriptions"))
+                    .uri(URI.create("https://graph.microsoft.com/v1.0/subscriptions"))
                     .header("Authorization", "Bearer " + accessToken)
                     .header("Accept", "application/json")
                     .header("Content-Type", "application/json")
@@ -122,6 +124,8 @@ public class Graph {
             response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 300) {
                 System.out.println("Successfully subscribed!");
+            } else if (response.statusCode() == 409) {
+                updateSubscription(client, p.getProperty("subUrl"), userId, accessToken, requestBodyJson);
             } else {
                 System.err.println(response.body());
             }
@@ -132,5 +136,23 @@ public class Graph {
         // Print response
         System.out.println("Response Code: " + response.statusCode());
         System.out.println("Response Body: " + response.body());
+    }
+
+
+    private static void updateSubscription(HttpClient client,String url, String id, String token, String body) throws IOException, InterruptedException {
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("notificationUrl",url);
+        HttpRequest subscriptionRequest = HttpRequest.newBuilder()
+                .uri(URI.create("https://graph.microsoft.com/v1.0/subscriptions/" + id))
+                .header("Authorization", "Bearer " + token)
+                .header("Accept", "application/json")
+                .header("Content-Type", "application/json")
+                .method("PATCH", HttpRequest.BodyPublishers.ofString(new ObjectMapper().writeValueAsString(requestBody), StandardCharsets.UTF_8))
+                .build();
+        HttpResponse<String> response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() > 300) {
+            System.err.println(response.body());
+        }
     }
 }

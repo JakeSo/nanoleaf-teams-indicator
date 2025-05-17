@@ -7,6 +7,7 @@ import com.pusher.client.channel.Channel;
 import com.pusher.client.connection.ConnectionEventListener;
 import com.pusher.client.connection.ConnectionState;
 import com.pusher.client.connection.ConnectionStateChange;
+import net.minidev.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,30 +15,38 @@ import javax.naming.ConfigurationException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
 
 public class SocketConnection {
 
-    private static final Logger log = LoggerFactory.getLogger(SocketConnection.class);
     private String PUSHER_KEY;
     private String PUSHER_CLUSTER;
     private final Pusher pusher;
 
     public SocketConnection(String clientState, StatusChangeHandler changeHandler) throws ConfigurationException {
+        CountDownLatch latch = new CountDownLatch(1);
         try {
             setupProperties();
             pusher = getPusher();
             Channel channel = pusher.subscribe("status-changes-" + clientState);
-            channel.bind("status-change", pusherEvent -> {
+            channel.bind("status-update", pusherEvent -> {
                 try {
-                    System.out.println("Received event: " + pusherEvent.toJson());
-                    Object eventObject = JSONUtils.parseJSON(pusherEvent.toJson());
-//                    Presence presence = JSONUtils.to(eventObject, Presence.class);
-//                    changeHandler.handleStatusChange(presence);
+                    System.out.println("Received event: " + pusherEvent.getData());
+                    JSONObject eventObject = (JSONObject) JSONUtils.parseJSON(pusherEvent.getData());
+                    EncryptedData data = new EncryptedData(eventObject);
+                    Presence presence = data.decryptData();
+                    changeHandler.handleStatusChange(presence);
                 } catch (Exception ex) {
-                    log.error("Error subscribing: ", ex);
-                    System.err.println("Event: \n" + pusherEvent.toString());
+                    System.out.println("Error parsing event data: " + ex.getMessage() + ", " + ex.getStackTrace()[0]);
                 }
             });
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                // Clean up resources, disconnect Pusher, etc.
+                pusher.disconnect();
+                latch.countDown();
+            }));
+            latch.await();
+
 
         } catch (IOException e) {
             throw new ConfigurationException("Could not read property values: " + e.getMessage());
