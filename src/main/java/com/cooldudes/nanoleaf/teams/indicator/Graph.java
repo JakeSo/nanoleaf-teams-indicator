@@ -13,6 +13,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -90,15 +93,25 @@ public class Graph {
         Properties p = new Properties();
         p.load(reader);
 
+        /*String certificate = Files.readString(Path.of("src/main/resources/cert.pem"), StandardCharsets.UTF_8)
+                .replace("-----BEGIN CERTIFICATE-----", "")
+                .replace("-----END CERTIFICATE-----", "")
+                .trim();
+        String base64Certificate = Base64.getEncoder().encodeToString(certificate.getBytes(StandardCharsets.UTF_8));
+        System.out.println(base64Certificate);*/
+
+        byte[] certBytes = Files.readAllBytes(Path.of("src/main/resources/cert.pem"));
+        String base64Certificate = Base64.getEncoder().encodeToString(certBytes);
 
         HttpClient client = HttpClient.newHttpClient();
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("changeType", "updated");
         requestBody.put("resource", "/communications/presences/"+userId);
         requestBody.put("notificationUrl", p.getProperty("subUrl"));
+        requestBody.put("includeResourceData", true);
         requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(10).toString());
-        /*.put("encryptionCertificate", "test");
-        requestBody.put("encryptionCertificateId", "test");*/
+        requestBody.put("encryptionCertificate", base64Certificate);
+        requestBody.put("encryptionCertificateId", "test");
         requestBody.put("clientState", session);
 
         ObjectMapper objectMapper = new ObjectMapper();
