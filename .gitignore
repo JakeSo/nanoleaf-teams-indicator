@@ -201,3 +201,7 @@ README.html
 .exercism
 
 *.properties
+
+### ingore cert items
+*.jks
+*.pem
