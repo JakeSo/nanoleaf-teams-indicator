@@ -6,12 +6,30 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Map;
 
-public class NanoleafShapes {
+public class NanoleafShapes implements StatusChangeHandler {
     private static final int API_PORT = 16021;
     private final String baseUrl;
     private final HttpClient client;
-
+    public static Map<String, NanoleafEffect.PaletteColor[]> STATUS_PALETTES = Map.ofEntries(
+            Map.entry("Available", new NanoleafEffect.PaletteColor[]{
+                    new NanoleafEffect.PaletteColor(100, 100, 100, 70),
+                    new NanoleafEffect.PaletteColor(100, 100, 70, 30),
+            }),
+            Map.entry("Busy", new NanoleafEffect.PaletteColor[]{
+                    new NanoleafEffect.PaletteColor(0, 100, 100, 50),
+                    new NanoleafEffect.PaletteColor(0, 100, 70, 50)
+            }),
+            Map.entry("Away", new NanoleafEffect.PaletteColor[]{
+                    new NanoleafEffect.PaletteColor(45, 80, 100, 10 ),
+                    new NanoleafEffect.PaletteColor(40, 100, 100, 90)
+            }),
+            Map.entry("OutOfOffice", new NanoleafEffect.PaletteColor[]{
+                    new NanoleafEffect.PaletteColor(282, 100, 10, 20),
+                    new NanoleafEffect.PaletteColor(0,0,0,80)
+            })
+    );
     /***
      * Creates a new NanoleafShapes
      * @param ip IP Address of the Nanoleaf Device
@@ -110,4 +128,27 @@ public class NanoleafShapes {
     }
 
 
+    /**Set Nanoleaf effect to match availability color
+     * @param userPresence the user's current Teams presence
+     */
+    @Override
+    public void handleStatusChange(Presence userPresence) throws IOException {
+        NanoleafEffect.PaletteColor[] palette;
+
+        if (userPresence.availability.equals("Busy") || userPresence.availability.equals("DoNotDisturb")) {
+            palette = STATUS_PALETTES.get("Busy");
+        } else if (userPresence.availability.equals("Away") || userPresence.availability.equals("BeRightBack")) {
+            palette = STATUS_PALETTES.get("Away");
+        } else if (userPresence.activity.equals("OutOfOffice")) {
+            palette = STATUS_PALETTES.get("OutOfOffice");
+        } else {
+            palette = STATUS_PALETTES.get("Available");
+        }
+        NanoleafEffect effect = new NanoleafEffect(palette);
+        try {
+            displayEffect(effect);
+        } catch (Exception e) {
+            throw new IOException("Could not update device", e.getCause());
+        }
+    }
 }
