@@ -21,5 +21,10 @@
             <artifactId>pusher-java-client</artifactId>
             <version>2.4.4</version>
         </dependency>
+        <dependency>
+            <groupId>io.github.rowak</groupId>
+            <artifactId>nanoleaf-api</artifactId>
+            <version>0.1.2</version>
+        </dependency>
     </dependencies>
 </project>
