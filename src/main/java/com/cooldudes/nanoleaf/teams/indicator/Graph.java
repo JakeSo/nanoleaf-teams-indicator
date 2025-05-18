@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutionException;
 
 public class Graph {
 
+private static String subscriptionId;
 
 private static Properties oauthProps;
 private static Properties subscriptionProps;
@@ -70,6 +71,7 @@ private static Properties subscriptionProps;
 
             IAuthenticationResult result = pca.acquireToken(parameters).get();
             accessToken = result.accessToken();
+            System.out.println(result);
             userId = result.account().homeAccountId().split("\\.")[0];
             subscriptionProps.setProperty("accessToken",accessToken);
             subscriptionProps.setProperty("accessTokenExp",result.expiresOnDate().toString());
@@ -107,6 +109,7 @@ private static Properties subscriptionProps;
                     .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson, StandardCharsets.UTF_8))
                     .build();
             response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
+
             if (response.statusCode() < 300) {
                 //System.out.println(((JSONObject) JSONUtils.parseJSON(response.body())).getAsString("id"));
                 subscriptionProps.setProperty("subscriptionId", (((JSONObject) JSONUtils.parseJSON(response.body())).getAsString("id")));
