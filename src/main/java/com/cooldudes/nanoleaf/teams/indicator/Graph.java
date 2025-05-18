@@ -13,9 +13,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -65,38 +62,6 @@ private static String subscriptionId;
         createSubscription(accessToken, session, userId);
     }
 
-    /*public static String getUser(String token) throws IOException, InterruptedException {
-        HttpResponse<String> presenceResponse;
-        try (HttpClient client = HttpClient.newHttpClient()) {
-
-            // Step 1: Get user details (name, email)
-            HttpRequest userRequest = HttpRequest.newBuilder()
-                    .uri(URI.create("https://graph.microsoft.com/v1.0/me?$select=displayName"))
-
-                    .header("Authorization", "Bearer " + token)
-                    .header("Accept", "application/json;odata.metadata=none")
-                    .GET()
-                    .build();
-
-            HttpResponse<String> userResponse = client.send(userRequest, HttpResponse.BodyHandlers.ofString());
-            System.out.println("User Info: " + userResponse.body());
-
-            // Step 2: Get presence status
-            HttpRequest presenceRequest = HttpRequest.newBuilder()
-                    .uri(URI.create("https://graph.microsoft.com/v1.0/me/presence"))
-                    .header("Authorization", "Bearer " + token)
-                    .header("Accept", "application/json;odata.metadata=none")
-                    .GET()
-                    .build();
-            presenceResponse = client.send(presenceRequest, HttpResponse.BodyHandlers.ofString());
-        }
-        System.out.println("Presence Info: " + presenceResponse.body());
-        ObjectMapper objectMapper = new ObjectMapper();
-        JsonNode jsonNode = objectMapper.readTree(presenceResponse.body());
-
-        return jsonNode.get("id").asText();
-    }*/
-
     public static void createSubscription(String accessToken, String session, String userId) throws IOException {
         FileReader reader = new FileReader("src/main/resources/oAuth.properties");
         // create properties object
@@ -110,6 +75,7 @@ private static String subscriptionId;
             requestBody.put("changeType", "updated");
             requestBody.put("resource", "/communications/presences/" + userId);
             requestBody.put("notificationUrl", p.getProperty("subUrl"));
+            requestBody.put("lifecycleNotificationUrl",p.getProperty("lifecycleUrl"));
             requestBody.put("includeResourceData", true);
             requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(2).toString());
             requestBody.put("encryptionCertificate",  CertificateUtil.getBase64EncodedCertificate("src/main/resources/public-cert.pem"));
