@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.aad.msal4j.IAuthenticationResult;
 import com.microsoft.aad.msal4j.InteractiveRequestParameters;
 import com.microsoft.aad.msal4j.PublicClientApplication;
+import com.nimbusds.oauth2.sdk.util.JSONUtils;
+import net.minidev.json.JSONObject;
 
 import java.io.*;
 import java.net.URI;
@@ -22,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 
 public class Graph {
 
+private static String subscriptionId;
 
     public static void initialize(String session) throws IOException, URISyntaxException, ExecutionException, InterruptedException {
         FileReader reader = new FileReader("src/main/resources/oAuth.properties");
@@ -50,6 +53,7 @@ public class Graph {
 
             IAuthenticationResult result = pca.acquireToken(parameters).get();
             accessToken = result.accessToken();
+            System.out.println(result);
             userId = result.account().homeAccountId().split("\\.")[0];
             p.setProperty("accessToken",accessToken);
             p.setProperty("userId",userId);
@@ -61,7 +65,7 @@ public class Graph {
         createSubscription(accessToken, session, userId);
     }
 
-    public static String getUser(String token) throws IOException, InterruptedException {
+    /*public static String getUser(String token) throws IOException, InterruptedException {
         HttpResponse<String> presenceResponse;
         try (HttpClient client = HttpClient.newHttpClient()) {
 
@@ -91,7 +95,7 @@ public class Graph {
         JsonNode jsonNode = objectMapper.readTree(presenceResponse.body());
 
         return jsonNode.get("id").asText();
-    }
+    }*/
 
     public static void createSubscription(String accessToken, String session, String userId) throws IOException {
         FileReader reader = new FileReader("src/main/resources/oAuth.properties");
@@ -99,12 +103,6 @@ public class Graph {
         Properties p = new Properties();
         p.load(reader);
 
-        /*String certificate = Files.readString(Path.of("src/main/resources/cert.pem"), StandardCharsets.UTF_8)
-                .replace("-----BEGIN CERTIFICATE-----", "")
-                .replace("-----END CERTIFICATE-----", "")
-                .trim();
-        String base64Certificate = Base64.getEncoder().encodeToString(certificate.getBytes(StandardCharsets.UTF_8));
-        System.out.println(base64Certificate);*/
 
         HttpResponse<String> response;
         try (HttpClient client = HttpClient.newHttpClient()) {
@@ -113,7 +111,7 @@ public class Graph {
             requestBody.put("resource", "/communications/presences/" + userId);
             requestBody.put("notificationUrl", p.getProperty("subUrl"));
             requestBody.put("includeResourceData", true);
-            requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(10).toString());
+            requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(2).toString());
             requestBody.put("encryptionCertificate",  CertificateUtil.getBase64EncodedCertificate("src/main/resources/public-cert.pem"));
             requestBody.put("encryptionCertificateId", "nano");
             requestBody.put("clientState", session);
@@ -129,7 +127,11 @@ public class Graph {
                     .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson, StandardCharsets.UTF_8))
                     .build();
             response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
+
             if (response.statusCode() < 300) {
+                //System.out.println(((JSONObject) JSONUtils.parseJSON(response.body())).getAsString("id"));
+                p.setProperty("subscriptionId", (((JSONObject) JSONUtils.parseJSON(response.body())).getAsString("id")));
+                p.store(new FileOutputStream("src/main/resources/oAuth.properties"), null);
                 System.out.println("Successfully subscribed!");
             } else if (response.statusCode() == 409) {
                 updateSubscription(client, accessToken, session, p);
