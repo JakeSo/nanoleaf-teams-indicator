@@ -15,6 +15,7 @@ import java.net.http.*;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -23,20 +24,41 @@ public class Graph {
 
 private static String subscriptionId;
 
-    public static void initialize(String session) throws IOException, URISyntaxException, ExecutionException, InterruptedException {
-        FileReader reader = new FileReader("src/main/resources/oAuth.properties");
-        // create properties object
-        Properties p = new Properties();
-        p.load(reader);
+private static Properties oauthProps;
+private static Properties subscriptionProps;
 
-        final String clientId = p.getProperty("client_id");
-        final String tenantId = p.getProperty("tenant");
-        final String[] scopes = p.getProperty("graphUserScopes").split(",");
-        String accessToken = p.getProperty("accessToken");
-        String userId = p.getProperty("userId");
+    private static void buildOAuthReader(){
+        try {
+            FileReader reader = new FileReader("src/main/resources/oAuth.properties");
+            // create properties object
+            oauthProps = new Properties();
+            oauthProps.load(reader);
+        }catch (Exception e){
+
+        }
+    }
+    private static void buildSubscriptionReader(){
+        try {
+            FileReader reader = new FileReader("src/main/resources/subscription.properties");
+            // create properties object
+            subscriptionProps = new Properties();
+            subscriptionProps.load(reader);
+        }catch (Exception e){
+
+        }
+    }
+
+    public static void initialize(String session) throws IOException, URISyntaxException, ExecutionException, InterruptedException {
+
+        buildOAuthReader(); buildSubscriptionReader();
+        compareTime();
+        final String clientId = oauthProps.getProperty("client_id");
+        final String tenantId = oauthProps.getProperty("tenant");
+        final String[] scopes = oauthProps.getProperty("graphUserScopes").split(",");
+        String accessToken = subscriptionProps.getProperty("accessToken");
+        String userId = subscriptionProps.getProperty("userId");
         if (accessToken == null) {
             System.out.println("Please log in to Microsoft...");
-
             // Build the PublicClientApplication instance (without scopes)
             PublicClientApplication pca = PublicClientApplication.builder(clientId)
                     .authority("https://login.microsoftonline.com/" + tenantId)
@@ -50,11 +72,12 @@ private static String subscriptionId;
 
             IAuthenticationResult result = pca.acquireToken(parameters).get();
             accessToken = result.accessToken();
-            System.out.println(result);
+
             userId = result.account().homeAccountId().split("\\.")[0];
-            p.setProperty("accessToken",accessToken);
-            p.setProperty("userId",userId);
-            p.store(new FileOutputStream("src/main/resources/oAuth.properties"), null);
+            subscriptionProps.setProperty("accessToken",accessToken);
+            subscriptionProps.setProperty("accessTokenExp",result.expiresOnDate().toString());
+            subscriptionProps.setProperty("userId",userId);
+            subscriptionProps.store(new FileOutputStream("src/main/resources/subscription.properties"), null);
 
         }
         // Print the access token
@@ -63,19 +86,14 @@ private static String subscriptionId;
     }
 
     public static void createSubscription(String accessToken, String session, String userId) throws IOException {
-        FileReader reader = new FileReader("src/main/resources/oAuth.properties");
-        // create properties object
-        Properties p = new Properties();
-        p.load(reader);
-
 
         HttpResponse<String> response;
         try (HttpClient client = HttpClient.newHttpClient()) {
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("changeType", "updated");
             requestBody.put("resource", "/communications/presences/" + userId);
-            requestBody.put("notificationUrl", p.getProperty("subUrl"));
-            requestBody.put("lifecycleNotificationUrl",p.getProperty("lifecycleUrl"));
+            requestBody.put("notificationUrl", oauthProps.getProperty("subUrl"));
+            requestBody.put("lifecycleNotificationUrl",oauthProps.getProperty("lifecycleUrl"));
             requestBody.put("includeResourceData", true);
             requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(2).toString());
             requestBody.put("encryptionCertificate",  CertificateUtil.getBase64EncodedCertificate("src/main/resources/public-cert.pem"));
@@ -96,11 +114,11 @@ private static String subscriptionId;
 
             if (response.statusCode() < 300) {
                 //System.out.println(((JSONObject) JSONUtils.parseJSON(response.body())).getAsString("id"));
-                p.setProperty("subscriptionId", (((JSONObject) JSONUtils.parseJSON(response.body())).getAsString("id")));
-                p.store(new FileOutputStream("src/main/resources/oAuth.properties"), null);
+                subscriptionProps.setProperty("subscriptionId", (((JSONObject) JSONUtils.parseJSON(response.body())).getAsString("id")));
+                subscriptionProps.store(new FileOutputStream("src/main/resources/subscription.properties"), null);
                 System.out.println("Successfully subscribed!");
             } else if (response.statusCode() == 409) {
-                updateSubscription(client, accessToken, session, p);
+                updateSubscription(client, accessToken, session);
             } else {
                 System.err.println(response.body());
             }
@@ -114,10 +132,10 @@ private static String subscriptionId;
     }
 
 
-    private static void updateSubscription(HttpClient client, String token, String session, Properties p) throws IOException, InterruptedException {
-        String id = p.getProperty("subscriptionId");
+    private static void updateSubscription(HttpClient client, String token, String session) throws IOException, InterruptedException {
+        String id = subscriptionProps.getProperty("subscriptionId");
         Map<String, Object> updateBody = new HashMap<>();
-        updateBody.put("notificationUrl", p.getProperty("subUrl"));
+        updateBody.put("notificationUrl", oauthProps.getProperty("subUrl"));
         updateBody.put("clientState", session);
         String body = new ObjectMapper().writeValueAsString(updateBody);
         HttpRequest subscriptionRequest = HttpRequest.newBuilder()
@@ -132,4 +150,22 @@ private static String subscriptionId;
             System.err.println(response.body());
         }
     }
+    private static void compareTime() throws IOException {
+        if (subscriptionProps.getProperty("accessTokenExp") != null) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss z yyyy");
+
+            ZonedDateTime zonedDateTime = ZonedDateTime.parse(ZonedDateTime.now().toString());
+            ZonedDateTime storedDate = ZonedDateTime.parse(subscriptionProps.getProperty("accessTokenExp"), formatter);
+            //Clear the subscription properties if the access token is overdue
+            if (zonedDateTime.isAfter(storedDate)) {
+                subscriptionProps.clear();
+                subscriptionProps.store(new FileOutputStream("src/main/resources/subscription.properties"), null);
+                System.out.println("Properties file cleared successfully.");
+
+            }
+        }
+    }
 }
+
+
+
