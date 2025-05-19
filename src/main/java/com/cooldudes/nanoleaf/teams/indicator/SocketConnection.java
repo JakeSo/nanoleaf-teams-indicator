@@ -13,7 +13,6 @@ import javax.naming.ConfigurationException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Properties;
-import java.util.concurrent.CountDownLatch;
 
 public class SocketConnection {
 
@@ -22,7 +21,6 @@ public class SocketConnection {
     private final Pusher pusher;
 
     public SocketConnection(String clientState, StatusChangeHandler changeHandler) throws ConfigurationException {
-        CountDownLatch latch = new CountDownLatch(1);
         try {
             setupProperties();
             pusher = getPusher();
@@ -33,19 +31,11 @@ public class SocketConnection {
                     JSONObject eventObject = (JSONObject) JSONUtils.parseJSON(pusherEvent.getData());
                     EncryptedData data = new EncryptedData(eventObject);
                     Presence presence = data.decryptData();
-
                     changeHandler.handleStatusChange(presence);
                 } catch (Exception ex) {
                     System.out.println("Error parsing event data: " + ex.getMessage() + ", " + ex.getStackTrace()[0]);
                 }
             });
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                // Clean up resources, disconnect Pusher, etc.
-                pusher.disconnect();
-                latch.countDown();
-            }));
-            latch.await();
-
 
         } catch (IOException e) {
             throw new ConfigurationException("Could not read property values: " + e.getMessage());
@@ -55,6 +45,11 @@ public class SocketConnection {
 
     }
 
+    /**
+     * Opens a connection to Pusher.
+     * @return the connected pusher client instance
+     * @see Pusher
+     */
     private Pusher getPusher() {
         final Pusher pusher;
         PusherOptions options = new PusherOptions().setCluster(PUSHER_CLUSTER);
@@ -75,6 +70,10 @@ public class SocketConnection {
         return pusher;
     }
 
+    /**
+     * Reads properties file and stores values to private fields
+     * @throws IOException if file doesn't exist or cannot be read
+     */
     private void setupProperties() throws IOException {
         FileReader reader = new FileReader("src/main/resources/pusher.properties");
         // create properties object
@@ -86,6 +85,9 @@ public class SocketConnection {
 
     }
 
+    /**
+     * Disconnects from Pusher
+     */
     public void disconnect() {
         pusher.disconnect();
     }

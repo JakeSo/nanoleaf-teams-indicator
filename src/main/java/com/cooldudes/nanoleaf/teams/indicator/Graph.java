@@ -11,9 +11,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.*;
@@ -56,7 +53,6 @@ public class Graph {
             p.store(new FileOutputStream("src/main/resources/oAuth.properties"), null);
 
         }
-        // Print the access token
         System.out.println("Login successful!");
         createSubscription(accessToken, session, userId);
     }
@@ -99,13 +95,6 @@ public class Graph {
         Properties p = new Properties();
         p.load(reader);
 
-        /*String certificate = Files.readString(Path.of("src/main/resources/cert.pem"), StandardCharsets.UTF_8)
-                .replace("-----BEGIN CERTIFICATE-----", "")
-                .replace("-----END CERTIFICATE-----", "")
-                .trim();
-        String base64Certificate = Base64.getEncoder().encodeToString(certificate.getBytes(StandardCharsets.UTF_8));
-        System.out.println(base64Certificate);*/
-
         HttpResponse<String> response;
         try (HttpClient client = HttpClient.newHttpClient()) {
             Map<String, Object> requestBody = new HashMap<>();
@@ -135,6 +124,9 @@ public class Graph {
                 updateSubscription(client, accessToken, session, p);
             } else {
                 System.err.println(response.body());
+
+                throw new SubscriptionException("Failed to subscribe: " + response.body());
+
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -163,5 +155,11 @@ public class Graph {
         if (response.statusCode() > 300) {
             System.err.println(response.body());
         }
+    }
+}
+
+class SubscriptionException extends Exception {
+    public SubscriptionException(String message) {
+        super(message);
     }
 }
