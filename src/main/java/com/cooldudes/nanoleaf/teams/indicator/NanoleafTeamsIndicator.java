@@ -37,7 +37,7 @@ public class NanoleafTeamsIndicator {
                 shapes = NanoleafShapes.findFirst();
             } else {
                 //Initialize the device with saved properties
-                shapes = new NanoleafShapes(ACCESS_TOKEN, ip);
+                shapes = new NanoleafShapes(ip, ACCESS_TOKEN);
                 try {
                     //Test the connection by turning on the device
                     shapes.setPower(true);
@@ -68,5 +68,4 @@ public class NanoleafTeamsIndicator {
             System.out.println("Error: " + e);
         }
     }
-
 }

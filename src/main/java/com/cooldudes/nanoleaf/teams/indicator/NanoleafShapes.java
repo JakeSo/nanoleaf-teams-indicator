@@ -38,7 +38,6 @@ public class NanoleafShapes implements StatusChangeHandler {
                     new NanoleafEffect.PaletteColor(0, 0, 0, 80)
             })
     );
-
     /***
      * Creates a new NanoleafShapes
      * @param ip IP Address of the Nanoleaf Device
@@ -92,9 +91,9 @@ public class NanoleafShapes implements StatusChangeHandler {
                     ourNano = devices.getFirst();
                 }
             }
-                String ip = ourNano.getHostName();
+                String ip = ourNano.getDeviceId();
                 properties.setProperty("ip", ip);
-                String accessToken = NanoleafSetup.createAccessToken(ourNano.getHostName(), ourNano.getPort());
+                String accessToken = NanoleafSetup.createAccessToken(ip, ourNano.getPort());
                 properties.setProperty("accessToken", accessToken);
                 properties.store(new FileOutputStream("src/main/resources/nanoleaf.properties"), null);
                 return new NanoleafShapes(ip, accessToken);
