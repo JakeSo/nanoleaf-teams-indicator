@@ -71,7 +71,7 @@ private static Properties subscriptionProps;
 
             IAuthenticationResult result = pca.acquireToken(parameters).get();
             accessToken = result.accessToken();
-            System.out.println(result);
+
             userId = result.account().homeAccountId().split("\\.")[0];
             subscriptionProps.setProperty("accessToken",accessToken);
             subscriptionProps.setProperty("accessTokenExp",result.expiresOnDate().toString());
