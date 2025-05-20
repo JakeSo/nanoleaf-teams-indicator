@@ -22,7 +22,6 @@ import java.util.concurrent.ExecutionException;
 
 public class Graph {
 
-private static String subscriptionId;
 
 private static Properties oauthProps;
 private static Properties subscriptionProps;
@@ -72,7 +71,6 @@ private static Properties subscriptionProps;
 
             IAuthenticationResult result = pca.acquireToken(parameters).get();
             accessToken = result.accessToken();
-
             userId = result.account().homeAccountId().split("\\.")[0];
             subscriptionProps.setProperty("accessToken",accessToken);
             subscriptionProps.setProperty("accessTokenExp",result.expiresOnDate().toString());
@@ -80,7 +78,6 @@ private static Properties subscriptionProps;
             subscriptionProps.store(new FileOutputStream("src/main/resources/subscription.properties"), null);
 
         }
-        // Print the access token
         System.out.println("Login successful!");
         createSubscription(accessToken, session, userId);
     }
@@ -111,7 +108,6 @@ private static Properties subscriptionProps;
                     .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson, StandardCharsets.UTF_8))
                     .build();
             response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
-
             if (response.statusCode() < 300) {
                 //System.out.println(((JSONObject) JSONUtils.parseJSON(response.body())).getAsString("id"));
                 subscriptionProps.setProperty("subscriptionId", (((JSONObject) JSONUtils.parseJSON(response.body())).getAsString("id")));
@@ -121,6 +117,9 @@ private static Properties subscriptionProps;
                 updateSubscription(client, accessToken, session);
             } else {
                 System.err.println(response.body());
+
+                throw new SubscriptionException("Failed to subscribe: " + response.body());
+
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -167,5 +166,8 @@ private static Properties subscriptionProps;
     }
 }
 
-
-
+class SubscriptionException extends Exception {
+    public SubscriptionException(String message) {
+        super(message);
+    }
+}

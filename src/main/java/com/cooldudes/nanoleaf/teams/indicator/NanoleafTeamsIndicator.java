@@ -4,10 +4,9 @@
 
 package com.cooldudes.nanoleaf.teams.indicator;
 
-import io.github.rowak.nanoleafapi.util.NanoleafDeviceMeta;
-import io.github.rowak.nanoleafapi.util.NanoleafSetup;
-
-import java.util.List;
+import java.io.*;
+import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
 
 /**
  *
@@ -16,18 +15,56 @@ import java.util.List;
 public class NanoleafTeamsIndicator {
 
     private static NanoleafShapes shapes;
-    private static String clientState = RandomGenerators.generateRandomString(10);
+    private static final String clientState = RandomGenerators.generateRandomString(10);
+
+    private static final String PROPS_FILEPATH = "src/main/resources/nanoleaf.properties";
 
     public static void main(String[] args)  {
         try {
-           Graph.initialize(clientState);
-           //TODO: Improve error handling and maybe store the IP and Access Token if needed
-            List<NanoleafDeviceMeta> devices = NanoleafSetup.findNanoleafDevices(500);
-            NanoleafDeviceMeta ourNano = devices.getFirst();
-            String accessToken = NanoleafSetup.createAccessToken(ourNano.getHostName(), ourNano.getPort());
-            NanoleafShapes shapes = new NanoleafShapes(ourNano.getDeviceId(), accessToken);
-            new SocketConnection(clientState, shapes);
-        } catch (Exception e) {
+            Graph.initialize(clientState);
+            Properties properties = new Properties();
+            try {
+                FileReader fr = new FileReader(PROPS_FILEPATH);
+                properties.load(fr);
+            } catch (FileNotFoundException e) {
+                new File(PROPS_FILEPATH).createNewFile();
+            }
+            String ACCESS_TOKEN = properties.getProperty("accessToken");
+            String ip = properties.getProperty("ip");
+            System.out.println("Connecting to Nanoleaf");
+            //If we don't have an access token, try to find the device
+            if (ACCESS_TOKEN == null) {
+                shapes = NanoleafShapes.findFirst();
+            } else {
+                //Initialize the device with saved properties
+                shapes = new NanoleafShapes(ip, ACCESS_TOKEN);
+                try {
+                    //Test the connection by turning on the device
+                    shapes.setPower(true);
+                } catch (IOException e) {
+                    //If we cannot connect then look for another one.
+                    System.out.println("Could not connect to device. Beginning search...");
+                    shapes = NanoleafShapes.findFirst();
+                }
+            }
+            if (shapes == null) {
+                System.exit(0);
+            }
+            SocketConnection socket = new SocketConnection(clientState, shapes);
+            CountDownLatch latch = new CountDownLatch(1);
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                // Clean up resources, disconnect Pusher, etc.
+                try {
+                    shapes.setPower(false);
+                } catch (Exception e) {
+                   System.out.println("Could not shutdown device: " + e.getMessage());
+                }
+                socket.disconnect();
+                latch.countDown();
+            }));
+            latch.await();
+        }
+        catch (Exception e) {
             System.out.println("Error: " + e);
         }
     }
