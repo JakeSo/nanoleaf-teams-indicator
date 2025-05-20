@@ -1,6 +1,5 @@
 package com.cooldudes.nanoleaf.teams.indicator;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.aad.msal4j.IAuthenticationResult;
 import com.microsoft.aad.msal4j.InteractiveRequestParameters;
@@ -32,7 +31,7 @@ private static Properties subscriptionProps;
             // create properties object
             oauthProps = new Properties();
             oauthProps.load(reader);
-        }catch (Exception e){
+        } catch (Exception _){
 
         }
     }
@@ -42,7 +41,7 @@ private static Properties subscriptionProps;
             // create properties object
             subscriptionProps = new Properties();
             subscriptionProps.load(reader);
-        }catch (Exception e){
+        } catch (Exception _){
 
         }
     }
@@ -82,7 +81,7 @@ private static Properties subscriptionProps;
         createSubscription(accessToken, session, userId);
     }
 
-    public static void createSubscription(String accessToken, String session, String userId) throws IOException {
+    public static void createSubscription(String accessToken, String session, String userId) {
 
         HttpResponse<String> response;
         try (HttpClient client = HttpClient.newHttpClient()) {
