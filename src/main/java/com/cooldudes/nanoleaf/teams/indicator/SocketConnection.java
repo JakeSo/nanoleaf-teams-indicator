@@ -37,6 +37,7 @@ public class SocketConnection {
                 }
             });
 
+
         } catch (IOException e) {
             throw new ConfigurationException("Could not read property values: " + e.getMessage());
         } catch (Exception e) {

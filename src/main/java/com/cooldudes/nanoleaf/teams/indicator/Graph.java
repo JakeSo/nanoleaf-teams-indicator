@@ -93,7 +93,7 @@ private static Properties subscriptionProps;
             requestBody.put("notificationUrl", oauthProps.getProperty("subUrl"));
             requestBody.put("lifecycleNotificationUrl",oauthProps.getProperty("lifecycleUrl"));
             requestBody.put("includeResourceData", true);
-            requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(2).toString());
+            requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(5).toString());
             requestBody.put("encryptionCertificate",  CertificateUtil.getBase64EncodedCertificate("src/main/resources/public-cert.pem"));
             requestBody.put("encryptionCertificateId", "nano");
             requestBody.put("clientState", session);
@@ -116,7 +116,9 @@ private static Properties subscriptionProps;
                 subscriptionProps.store(new FileOutputStream("src/main/resources/subscription.properties"), null);
                 System.out.println("Successfully subscribed!");
             } else if (response.statusCode() == 409) {
-                updateSubscription(client, accessToken, session);
+                updateSubscription(client, accessToken);
+                createSubscription(accessToken,session,userId);
+                client.close();
             } else {
                 System.err.println(response.body());
 
@@ -133,18 +135,19 @@ private static Properties subscriptionProps;
     }
 
 
-    private static void updateSubscription(HttpClient client, String token, String session) throws IOException, InterruptedException {
+    private static void updateSubscription(HttpClient client, String token) throws IOException, InterruptedException {
         String id = subscriptionProps.getProperty("subscriptionId");
-        Map<String, Object> updateBody = new HashMap<>();
-        updateBody.put("notificationUrl", oauthProps.getProperty("subUrl"));
-        updateBody.put("clientState", session);
-        String body = new ObjectMapper().writeValueAsString(updateBody);
+        //Map<String, Object> updateBody = new HashMap<>();
+        //updateBody.put("notificationUrl", oauthProps.getProperty("subUrl"));
+        //updateBody.put("clientState", session);
+        //String body = new ObjectMapper().writeValueAsString(updateBody);
         HttpRequest subscriptionRequest = HttpRequest.newBuilder()
                 .uri(URI.create("https://graph.microsoft.com/v1.0/subscriptions/" + id))
                 .header("Authorization", "Bearer " + token)
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
-                .method("PATCH", HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                //.method("PATCH", HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .DELETE()
                 .build();
         HttpResponse<String> response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() > 300) {
@@ -166,6 +169,9 @@ private static Properties subscriptionProps;
             }
         }
     }
+
+
+
 }
 
 class SubscriptionException extends Exception {
