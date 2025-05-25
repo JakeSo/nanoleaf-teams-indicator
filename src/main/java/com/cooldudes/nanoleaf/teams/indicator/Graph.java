@@ -21,8 +21,6 @@ import java.util.concurrent.ExecutionException;
 
 public class Graph {
 
-private static String subscriptionId;
-
 private static Properties oauthProps;
 private static Properties subscriptionProps;
 
@@ -93,7 +91,7 @@ private static Properties subscriptionProps;
             requestBody.put("notificationUrl", oauthProps.getProperty("subUrl"));
             requestBody.put("lifecycleNotificationUrl",oauthProps.getProperty("lifecycleUrl"));
             requestBody.put("includeResourceData", true);
-            requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(5).toString());
+            requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusHours(1).toString());
             requestBody.put("encryptionCertificate",  CertificateUtil.getBase64EncodedCertificate("src/main/resources/public-cert.pem"));
             requestBody.put("encryptionCertificateId", "nano");
             requestBody.put("clientState", session);
@@ -116,7 +114,7 @@ private static Properties subscriptionProps;
                 subscriptionProps.store(new FileOutputStream("src/main/resources/subscription.properties"), null);
                 System.out.println("Successfully subscribed!");
             } else if (response.statusCode() == 409) {
-                updateSubscription(client, accessToken);
+                deleteSubscription(client, accessToken);
                 createSubscription(accessToken,session,userId);
                 client.close();
             } else {
@@ -135,23 +133,39 @@ private static Properties subscriptionProps;
     }
 
 
-    private static void updateSubscription(HttpClient client, String token) throws IOException, InterruptedException {
+    private static void deleteSubscription(HttpClient client, String token) throws IOException, InterruptedException {
         String id = subscriptionProps.getProperty("subscriptionId");
-        //Map<String, Object> updateBody = new HashMap<>();
-        //updateBody.put("notificationUrl", oauthProps.getProperty("subUrl"));
-        //updateBody.put("clientState", session);
-        //String body = new ObjectMapper().writeValueAsString(updateBody);
         HttpRequest subscriptionRequest = HttpRequest.newBuilder()
                 .uri(URI.create("https://graph.microsoft.com/v1.0/subscriptions/" + id))
                 .header("Authorization", "Bearer " + token)
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
-                //.method("PATCH", HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                 .DELETE()
                 .build();
         HttpResponse<String> response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() > 300) {
             System.err.println(response.body());
+        }
+    }
+
+    static void updateSubscription() {
+        String id = subscriptionProps.getProperty("subscriptionId");
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            HttpRequest subscriptionRequest = HttpRequest.newBuilder()
+                    .uri(URI.create("https://graph.microsoft.com/v1.0/subscriptions/" + id))
+                    .header("Authorization", "Bearer " + subscriptionProps.getProperty("accessToken"))
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString(String.format("{ \"expirationDateTime\": \"%s\" }", ZonedDateTime.now(ZoneOffset.UTC).plusHours(1))))
+                    .build();
+            HttpResponse<String> response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 300 ) {
+                System.out.println("Reauthorization succeeded!");
+            } else {
+                System.out.print("Reauthorization failed: " + response.body());
+            }
+        } catch (Exception e) {
+            System.err.println("Exception while updating subscription: " + e.getMessage());
         }
     }
     private static void compareTime() throws IOException {

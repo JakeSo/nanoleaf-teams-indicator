@@ -37,6 +37,11 @@ public class SocketConnection {
                 }
             });
 
+            channel.bind("reauth-required", _ -> {
+                System.out.println("Reauthorizing...");
+                Graph.updateSubscription();
+            });
+
 
         } catch (IOException e) {
             throw new ConfigurationException("Could not read property values: " + e.getMessage());
