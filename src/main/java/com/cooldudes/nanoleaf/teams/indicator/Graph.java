@@ -1,9 +1,7 @@
 package com.cooldudes.nanoleaf.teams.indicator;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.microsoft.aad.msal4j.IAuthenticationResult;
-import com.microsoft.aad.msal4j.InteractiveRequestParameters;
-import com.microsoft.aad.msal4j.PublicClientApplication;
+import com.microsoft.aad.msal4j.*;
 import com.nimbusds.oauth2.sdk.util.JSONUtils;
 import net.minidev.json.JSONObject;
 
@@ -11,6 +9,8 @@ import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.*;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -91,7 +91,7 @@ private static Properties subscriptionProps;
             requestBody.put("notificationUrl", oauthProps.getProperty("subUrl"));
             requestBody.put("lifecycleNotificationUrl",oauthProps.getProperty("lifecycleUrl"));
             requestBody.put("includeResourceData", true);
-            requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusHours(1).toString());
+            requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(1).toString());
             requestBody.put("encryptionCertificate",  CertificateUtil.getBase64EncodedCertificate("src/main/resources/public-cert.pem"));
             requestBody.put("encryptionCertificateId", "nano");
             requestBody.put("clientState", session);
@@ -116,7 +116,6 @@ private static Properties subscriptionProps;
             } else if (response.statusCode() == 409) {
                 deleteSubscription(client, accessToken);
                 createSubscription(accessToken,session,userId);
-                client.close();
             } else {
                 System.err.println(response.body());
 
@@ -148,7 +147,7 @@ private static Properties subscriptionProps;
         }
     }
 
-    static void updateSubscription() {
+    /*static void updateSubscription() {
         String id = subscriptionProps.getProperty("subscriptionId");
         try (HttpClient client = HttpClient.newHttpClient()) {
             HttpRequest subscriptionRequest = HttpRequest.newBuilder()
@@ -167,6 +166,35 @@ private static Properties subscriptionProps;
         } catch (Exception e) {
             System.err.println("Exception while updating subscription: " + e.getMessage());
         }
+    }*/
+    public static void updateSubscription(){
+        System.out.println("Reauth needed");
+        final String clientId = oauthProps.getProperty("client_id");
+        final String tenantId = oauthProps.getProperty("tenant");
+        final String[] scopes = oauthProps.getProperty("graphUserScopes").split(",");
+        try{
+        PublicClientApplication pca = PublicClientApplication.builder(clientId)
+                .authority("https://login.microsoftonline.com/" + tenantId)
+                .build();
+
+            IAccount account = pca.getAccounts().join().iterator().next(); // Get a cached account
+            SilentParameters parameters = SilentParameters.builder(new HashSet<>(Arrays.asList(scopes)))
+                    .account(account)
+                    .build();
+
+            IAuthenticationResult result = pca.acquireTokenSilently(parameters).join();
+            System.out.println("Access Token: " + result.accessToken());
+            subscriptionProps.setProperty("accessToken",result.accessToken());
+            subscriptionProps.setProperty("accessTokenExp",result.expiresOnDate().toString());
+            subscriptionProps.store(new FileOutputStream("src/main/resources/subscription.properties"), null);
+
+        }
+
+
+        catch (Exception e){
+            System.out.println("test");
+        }
+
     }
     private static void compareTime() throws IOException {
         if (subscriptionProps.getProperty("accessTokenExp") != null) {
