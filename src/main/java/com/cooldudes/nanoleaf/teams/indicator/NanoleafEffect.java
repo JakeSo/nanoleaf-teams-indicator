@@ -1,6 +1,5 @@
 package com.cooldudes.nanoleaf.teams.indicator;
 
-
 public class NanoleafEffect {
     public String command;
     public String version = "2.0";
@@ -34,7 +33,8 @@ public class NanoleafEffect {
         if (palette != null) {
             for (int i = 0; i < palette.length; i++) {
                 sb.append(palette[i].toString()); // assumes PaletteColor has its own JSON-like toString()
-                if (i < palette.length - 1) sb.append(",");
+                if (i < palette.length - 1)
+                    sb.append(",");
             }
         }
 
@@ -45,7 +45,6 @@ public class NanoleafEffect {
         return sb.toString();
     }
 
-
     public static class PaletteColor {
         public int hue;
         public int saturation;
@@ -53,7 +52,7 @@ public class NanoleafEffect {
         public int probability;
 
         public PaletteColor(int hue, int saturation, int brightness, int probability) {
-            if ( hue > 359 || hue < 0) {
+            if (hue > 359 || hue < 0) {
                 throw new IllegalArgumentException("Hue should be between 0 and 359");
             }
             if (saturation > 100 || saturation < 0) {
@@ -77,8 +76,7 @@ public class NanoleafEffect {
         public String toString() {
             return String.format(
                     "{\"hue\":%d,\"saturation\":%d,\"brightness\":%d,\"probability\":%d}",
-                    hue, saturation, brightness, probability
-            );
+                    hue, saturation, brightness, probability);
         }
 
     }

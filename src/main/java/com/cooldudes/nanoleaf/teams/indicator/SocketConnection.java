@@ -14,12 +14,23 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.Properties;
 
+/**
+ * Handles the Pusher socket connection for receiving Teams presence events.
+ */
 public class SocketConnection {
 
     private String PUSHER_KEY;
     private String PUSHER_CLUSTER;
     private final Pusher pusher;
 
+    /**
+     * Creates a new socket connection and subscribes to presence events.
+     * 
+     * @param clientState   Unique client state/session string
+     * @param changeHandler Handler for presence status changes
+     * @throws ConfigurationException if properties cannot be loaded or Pusher fails
+     *                                to connect
+     */
     public SocketConnection(String clientState, StatusChangeHandler changeHandler) throws ConfigurationException {
         try {
             setupProperties();
@@ -42,7 +53,6 @@ public class SocketConnection {
                 Graph.updateSubscription();
             });
 
-
         } catch (IOException e) {
             throw new ConfigurationException("Could not read property values: " + e.getMessage());
         } catch (Exception e) {
@@ -53,6 +63,7 @@ public class SocketConnection {
 
     /**
      * Opens a connection to Pusher.
+     * 
      * @return the connected pusher client instance
      * @see Pusher
      */
@@ -65,6 +76,7 @@ public class SocketConnection {
             public void onConnectionStateChange(ConnectionStateChange change) {
                 System.out.println("State changed to " + change.getCurrentState() +
                         " from " + change.getPreviousState());
+
             }
 
             @Override
@@ -73,11 +85,23 @@ public class SocketConnection {
                 System.err.println(message);
             }
         }, ConnectionState.ALL);
+        pusher.getConnection().bind(ConnectionState.CONNECTED, new ConnectionEventListener() {
+            @Override
+            public void onConnectionStateChange(ConnectionStateChange change) {                
+                Graph.ensureActiveSubscription();
+            }
+
+            @Override
+            public void onError(String message, String code, Exception e) {
+                throw new RuntimeException("Error connecting to Pusher: " + message, e);
+            }
+        });
         return pusher;
     }
 
     /**
      * Reads properties file and stores values to private fields
+     * 
      * @throws IOException if file doesn't exist or cannot be read
      */
     private void setupProperties() throws IOException {
@@ -92,12 +116,15 @@ public class SocketConnection {
     }
 
     /**
-     * Disconnects from Pusher
+     * Disconnects from Pusher.
      */
     public void disconnect() {
         pusher.disconnect();
     }
 
+    /**
+     * Connects to Pusher.
+     */
     public void connect() {
         pusher.connect();
     }

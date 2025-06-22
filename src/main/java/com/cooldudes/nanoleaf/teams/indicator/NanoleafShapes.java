@@ -16,34 +16,47 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Scanner;
 
+/**
+ * Controls a Nanoleaf Shapes device and updates its effects based on Teams
+ * presence.
+ */
 public class NanoleafShapes implements StatusChangeHandler {
     private static final int API_PORT = 16021;
     private String baseUrl;
     private final HttpClient client;
     public static Map<String, NanoleafEffect.PaletteColor[]> STATUS_PALETTES = Map.ofEntries(
-            Map.entry("Available", new NanoleafEffect.PaletteColor[]{
+            Map.entry("Available", new NanoleafEffect.PaletteColor[] {
                     new NanoleafEffect.PaletteColor(100, 100, 100, 70),
                     new NanoleafEffect.PaletteColor(100, 75, 100, 30),
             }),
-            Map.entry("Busy", new NanoleafEffect.PaletteColor[]{
+            Map.entry("Busy", new NanoleafEffect.PaletteColor[] {
                     new NanoleafEffect.PaletteColor(0, 100, 100, 50),
                     new NanoleafEffect.PaletteColor(0, 100, 70, 50)
             }),
-            Map.entry("Away", new NanoleafEffect.PaletteColor[]{
+            Map.entry("Away", new NanoleafEffect.PaletteColor[] {
                     new NanoleafEffect.PaletteColor(45, 80, 100, 10),
                     new NanoleafEffect.PaletteColor(40, 100, 100, 90)
             }),
-            Map.entry("OutOfOffice", new NanoleafEffect.PaletteColor[]{
+            Map.entry("OutOfOffice", new NanoleafEffect.PaletteColor[] {
                     new NanoleafEffect.PaletteColor(282, 100, 10, 20),
                     new NanoleafEffect.PaletteColor(0, 0, 0, 80)
-            })
-    );
+            }));
+
     /***
      * Creates a new NanoleafShapes
-     * @param ip IP Address of the Nanoleaf Device
+     * 
+     * @param ip        IP Address of the Nanoleaf Device
      * @param authToken Authorization token received from Nanoleaf
      */
     public NanoleafShapes(String ip, String authToken) {
+        // Check if the IP is IPv6
+        if (ip.contains(":")) {
+            ip = "[" + ip + "]";
+        }
+        // Format the base URL for API requests
+        if (authToken == null || authToken.isEmpty()) {
+            throw new IllegalArgumentException("Auth token cannot be null or empty");
+        }
         this.baseUrl = String.format("http://%s:%d/api/v1/%s", ip, API_PORT, authToken);
         this.client = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
@@ -67,7 +80,9 @@ public class NanoleafShapes implements StatusChangeHandler {
     }
 
     /**
-     * Looks for devices and returns the first one. Gives the user 3 chances to search.
+     * Looks for devices and returns the first one. Gives the user 3 chances to
+     * search.
+     * 
      * @return the device if found, null otherwise
      */
     public static NanoleafShapes findFirst() {
@@ -77,7 +92,8 @@ public class NanoleafShapes implements StatusChangeHandler {
             NanoleafDeviceMeta ourNano = null;
             int retries = 0;
             while (ourNano == null) {
-                System.out.println("Please hold the power button on the Nanoleaf until the lights start flashing, then hit Enter");
+                System.out.println(
+                        "Please hold the power button on the Nanoleaf until the lights start flashing, then hit Enter");
                 scanner.nextLine();
                 List<NanoleafDeviceMeta> devices = NanoleafSetup.findNanoleafDevices(5000);
                 if (devices.isEmpty()) {
@@ -88,15 +104,16 @@ public class NanoleafShapes implements StatusChangeHandler {
                     }
                     System.out.println("Could not find Nanoleaf. Please try again.");
                 } else {
-                    ourNano = devices.getFirst();
+                    ourNano = devices.get(0);
                 }
             }
-                String ip = ourNano.getDeviceId();
-                properties.setProperty("ip", ip);
-                String accessToken = NanoleafSetup.createAccessToken(ip, ourNano.getPort());
-                properties.setProperty("accessToken", accessToken);
-                properties.store(new FileOutputStream("src/main/resources/nanoleaf.properties"), null);
-                return new NanoleafShapes(ip, accessToken);
+            scanner.close();
+            String ip = ourNano.getDeviceId();
+            properties.setProperty("ip", ip);
+            String accessToken = NanoleafSetup.createAccessToken(ip, ourNano.getPort());
+            properties.setProperty("accessToken", accessToken);
+            properties.store(new FileOutputStream("src/main/resources/nanoleaf.properties"), null);
+            return new NanoleafShapes(ip, accessToken);
         } catch (NanoleafException | IOException e) {
             throw new RuntimeException("Error searching for device: " + e.getMessage(), e);
         }
@@ -118,10 +135,17 @@ public class NanoleafShapes implements StatusChangeHandler {
         return resp.body().contains("\"value\":true");
     }
 
+    /**
+     * Sets the power state of the device.
+     * 
+     * @param on true to power on, false to power off
+     * @throws IOException          if network error occurs
+     * @throws InterruptedException if interrupted
+     */
     public void setPower(boolean on) throws IOException, InterruptedException {
         String json = String.format("{\"on\":{\"value\":%b}}", on);
         client.send(reqBuilder("/state/on")
-                        .PUT(HttpRequest.BodyPublishers.ofString(json)).build(),
+                .PUT(HttpRequest.BodyPublishers.ofString(json)).build(),
                 HttpResponse.BodyHandlers.discarding());
     }
 
@@ -137,7 +161,7 @@ public class NanoleafShapes implements StatusChangeHandler {
     public void setBrightness(int level) throws IOException, InterruptedException {
         String json = String.format("{\"brightness\":{\"value\":%d}}", level);
         client.send(reqBuilder("/state/brightness")
-                        .PUT(HttpRequest.BodyPublishers.ofString(json)).build(),
+                .PUT(HttpRequest.BodyPublishers.ofString(json)).build(),
                 HttpResponse.BodyHandlers.discarding());
     }
 
@@ -152,10 +176,9 @@ public class NanoleafShapes implements StatusChangeHandler {
         int bri = Math.round(hsv[2] * 100);
         String json = String.format(
                 "{\"hue\":{\"value\":%d},\"sat\":{\"value\":%d},\"brightness\":{\"value\":%d}}",
-                hue, sat, bri
-        );
+                hue, sat, bri);
         client.send(reqBuilder("/state/color")
-                        .PUT(HttpRequest.BodyPublishers.ofString(json)).build(),
+                .PUT(HttpRequest.BodyPublishers.ofString(json)).build(),
                 HttpResponse.BodyHandlers.discarding());
     }
 
@@ -182,7 +205,6 @@ public class NanoleafShapes implements StatusChangeHandler {
         client.send(reqBuilder("/effects").PUT(HttpRequest.BodyPublishers.ofString(json)).build(),
                 HttpResponse.BodyHandlers.discarding());
     }
-
 
     /**
      * Set Nanoleaf effect to match availability color
@@ -212,9 +234,9 @@ public class NanoleafShapes implements StatusChangeHandler {
         }
     }
 
-
     /**
      * Gets the defined effect palette colors for a given Presence.
+     * 
      * @param userPresence a Presence to retrieve the color(s) for
      * @return an array containing 1 or more colors
      * @see com.cooldudes.nanoleaf.teams.indicator.NanoleafEffect.PaletteColor
