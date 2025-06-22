@@ -27,10 +27,10 @@ public class SocketConnection {
             Channel channel = pusher.subscribe("status-changes-" + clientState);
             channel.bind("status-update", pusherEvent -> {
                 try {
-                    System.out.println("Received event: " + pusherEvent.getData());
                     JSONObject eventObject = (JSONObject) JSONUtils.parseJSON(pusherEvent.getData());
                     EncryptedData data = new EncryptedData(eventObject);
                     Presence presence = data.decryptData();
+                    System.out.println(presence.toString());
                     changeHandler.handleStatusChange(presence);
                 } catch (Exception ex) {
                     System.out.println("Error parsing event data: " + ex.getMessage() + ", " + ex.getStackTrace()[0]);

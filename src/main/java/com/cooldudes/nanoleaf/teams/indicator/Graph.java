@@ -16,13 +16,14 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 
 
 public class Graph {
 
 private static Properties oauthProps;
 private static Properties subscriptionProps;
+private static IAccount account;
+private static PublicClientApplication app;
 
     private static void buildOAuthReader(){
         try {
@@ -45,38 +46,33 @@ private static Properties subscriptionProps;
         }
     }
 
-    public static void initialize(String session) throws IOException, URISyntaxException, ExecutionException, InterruptedException {
+    public static void initialize(String session) throws IOException, URISyntaxException {
 
         buildOAuthReader(); buildSubscriptionReader();
         compareTime();
         final String clientId = oauthProps.getProperty("client_id");
         final String tenantId = oauthProps.getProperty("tenant");
         final String[] scopes = oauthProps.getProperty("graphUserScopes").split(",");
-        String accessToken = subscriptionProps.getProperty("accessToken");
-        String userId = subscriptionProps.getProperty("userId");
-        if (accessToken == null) {
-            System.out.println("Please log in to Microsoft...");
-            // Build the PublicClientApplication instance (without scopes)
-            PublicClientApplication pca = PublicClientApplication.builder(clientId)
-                    .authority("https://login.microsoftonline.com/" + tenantId)
-                    .build();
+        System.out.println("Please log in to Microsoft...");
+        // Build the PublicClientApplication instance (without scopes)
+        app = PublicClientApplication.builder(clientId)
+                .authority("https://login.microsoftonline.com/" + tenantId)
+                .build();
 
-            // Request authentication interactively
-            InteractiveRequestParameters parameters = InteractiveRequestParameters.builder(
-                            new URI("http://localhost:8080")) // Redirect URI registered in Entra ID
-                    .scopes(new HashSet<>(Arrays.asList(scopes)))
-                    .build();
+        // Request authentication interactively
+        InteractiveRequestParameters parameters = InteractiveRequestParameters.builder(
+                        new URI("http://localhost:8080")) // Redirect URI registered in Entra ID
+                .scopes(new HashSet<>(Arrays.asList(scopes)))
+                .build();
 
-            IAuthenticationResult result = pca.acquireToken(parameters).get();
-            accessToken = result.accessToken();
-
-            userId = result.account().homeAccountId().split("\\.")[0];
-            subscriptionProps.setProperty("accessToken",accessToken);
-            subscriptionProps.setProperty("accessTokenExp",result.expiresOnDate().toString());
-            subscriptionProps.setProperty("userId",userId);
-            subscriptionProps.store(new FileOutputStream("src/main/resources/subscription.properties"), null);
-
-        }
+        IAuthenticationResult result = app.acquireToken(parameters).join();
+        String accessToken = result.accessToken();
+        account = result.account();
+        String userId = account.homeAccountId().split("\\.")[0];
+        subscriptionProps.setProperty("accessToken",accessToken);
+        subscriptionProps.setProperty("accessTokenExp",result.expiresOnDate().toString());
+        subscriptionProps.setProperty("userId",userId);
+        subscriptionProps.store(new FileOutputStream("src/main/resources/subscription.properties"), null);
         System.out.println("Login successful!");
         createSubscription(accessToken, session, userId);
     }
@@ -91,7 +87,7 @@ private static Properties subscriptionProps;
             requestBody.put("notificationUrl", oauthProps.getProperty("subUrl"));
             requestBody.put("lifecycleNotificationUrl",oauthProps.getProperty("lifecycleUrl"));
             requestBody.put("includeResourceData", true);
-            requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(1).toString());
+            requestBody.put("expirationDateTime", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(45).toString());
             requestBody.put("encryptionCertificate",  CertificateUtil.getBase64EncodedCertificate("src/main/resources/public-cert.pem"));
             requestBody.put("encryptionCertificateId", "nano");
             requestBody.put("clientState", session);
@@ -118,7 +114,6 @@ private static Properties subscriptionProps;
                 createSubscription(accessToken,session,userId);
             } else {
                 System.err.println(response.body());
-
                 throw new SubscriptionException("Failed to subscribe: " + response.body());
 
             }
@@ -134,20 +129,22 @@ private static Properties subscriptionProps;
 
     private static void deleteSubscription(HttpClient client, String token) throws IOException, InterruptedException {
         String id = subscriptionProps.getProperty("subscriptionId");
-        HttpRequest subscriptionRequest = HttpRequest.newBuilder()
-                .uri(URI.create("https://graph.microsoft.com/v1.0/subscriptions/" + id))
-                .header("Authorization", "Bearer " + token)
-                .header("Accept", "application/json")
-                .header("Content-Type", "application/json")
-                .DELETE()
-                .build();
-        HttpResponse<String> response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() > 300) {
-            System.err.println(response.body());
+        if (id != null && !id.isBlank()) {
+            HttpRequest subscriptionRequest = HttpRequest.newBuilder()
+                    .uri(URI.create("https://graph.microsoft.com/v1.0/subscriptions/" + id))
+                    .header("Authorization", "Bearer " + token)
+                    .header("Accept", "application/json")
+                    .header("Content-Type", "application/json")
+                    .DELETE()
+                    .build();
+            HttpResponse<String> response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() > 300) {
+                System.err.println(response.body());
+            }
         }
     }
 
-    /*static void updateSubscription() {
+    static void updateSubscription() {
         String id = subscriptionProps.getProperty("subscriptionId");
         try (HttpClient client = HttpClient.newHttpClient()) {
             HttpRequest subscriptionRequest = HttpRequest.newBuilder()
@@ -155,47 +152,43 @@ private static Properties subscriptionProps;
                     .header("Authorization", "Bearer " + subscriptionProps.getProperty("accessToken"))
                     .header("Accept", "application/json")
                     .header("Content-Type", "application/json")
-                    .method("PATCH", HttpRequest.BodyPublishers.ofString(String.format("{ \"expirationDateTime\": \"%s\" }", ZonedDateTime.now(ZoneOffset.UTC).plusHours(1))))
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString(String.format("{ \"expirationDateTime\": \"%s\" }", ZonedDateTime.now(ZoneOffset.UTC).plusMinutes(45))))
                     .build();
             HttpResponse<String> response = client.send(subscriptionRequest, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 300 ) {
                 System.out.println("Reauthorization succeeded!");
+            } else if (response.statusCode() == 401) {
+                System.out.println("Token expired");
+                getNewToken();
+                updateSubscription();
             } else {
-                System.out.print("Reauthorization failed: " + response.body());
+                System.out.println(response.body());
+                throw new RuntimeException("Reauthorization failed with status" + response.statusCode());
+//                updateSubscription();
             }
         } catch (Exception e) {
-            System.err.println("Exception while updating subscription: " + e.getMessage());
+            throw new RuntimeException("Exception while updating subscription: " + e.getMessage(), e);
         }
-    }*/
-    public static void updateSubscription(){
-        System.out.println("Reauth needed");
-        final String clientId = oauthProps.getProperty("client_id");
-        final String tenantId = oauthProps.getProperty("tenant");
+    }
+    static void getNewToken(){
         final String[] scopes = oauthProps.getProperty("graphUserScopes").split(",");
         try{
-        PublicClientApplication pca = PublicClientApplication.builder(clientId)
-                .authority("https://login.microsoftonline.com/" + tenantId)
-                .build();
-
-            IAccount account = pca.getAccounts().join().iterator().next(); // Get a cached account
             SilentParameters parameters = SilentParameters.builder(new HashSet<>(Arrays.asList(scopes)))
                     .account(account)
                     .build();
 
-            IAuthenticationResult result = pca.acquireTokenSilently(parameters).join();
-            System.out.println("Access Token: " + result.accessToken());
+            IAuthenticationResult result = app.acquireTokenSilently(parameters).join();
             subscriptionProps.setProperty("accessToken",result.accessToken());
             subscriptionProps.setProperty("accessTokenExp",result.expiresOnDate().toString());
             subscriptionProps.store(new FileOutputStream("src/main/resources/subscription.properties"), null);
 
         }
-
-
         catch (Exception e){
-            System.out.println("test");
+            throw new RuntimeException("Exception when getting new token: " + e.getMessage(), e);
         }
 
     }
+
     private static void compareTime() throws IOException {
         if (subscriptionProps.getProperty("accessTokenExp") != null) {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss z yyyy");
