@@ -50,7 +50,11 @@ public class SocketConnection {
 
             channel.bind("reauth-required", _ -> {
                 System.out.println("Reauthorizing...");
-                Graph.updateSubscription();
+                try {
+                    Graph.updateSubscription();
+                } catch (SubscriptionException e) {
+                    System.err.println("Error reauthorizing: " + e.getMessage());
+                }
             });
 
         } catch (IOException e) {
@@ -87,8 +91,13 @@ public class SocketConnection {
         }, ConnectionState.ALL);
         pusher.getConnection().bind(ConnectionState.CONNECTED, new ConnectionEventListener() {
             @Override
-            public void onConnectionStateChange(ConnectionStateChange change) {                
-                Graph.ensureActiveSubscription();
+            public void onConnectionStateChange(ConnectionStateChange change) {    
+                try {      
+                    Graph.ensureActiveSubscription();
+                } catch (Exception e) {
+                    System.err.println("Error ensuring active subscription: " + e.getMessage());
+                    disconnect();
+                }
             }
 
             @Override
