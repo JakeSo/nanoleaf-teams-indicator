@@ -18,8 +18,9 @@ public class NanoleafTeamsIndicator {
 
     private static NanoleafShapes shapes;
     private static final String clientState = RandomGenerators.generateRandomString(10);
+    private static final String CONFIG_DIR = System.getProperty("user.dir") + File.separator + "resources" + File.separator;
 
-    private static final String PROPS_FILEPATH = "src/main/resources/nanoleaf.properties";
+    private static final String PROPS_FILEPATH = CONFIG_DIR + "nanoleaf.properties";
 
     /**
      * Main method to start the application.

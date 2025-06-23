@@ -27,4 +27,29 @@
             <version>0.1.2</version>
         </dependency>
     </dependencies>
+    <build>
+        <plugins>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <version>3.0.0</version>
+            <executions>
+                <execution>
+                    <id>copy-config</id>
+                    <phase>package</phase>
+                    <configuration>
+                        <target>
+                            <mkdir dir="${project.build.directory}/../resources"/>
+                            <copy todir="${project.build.directory}/../resources" overwrite="true">
+                                <fileset dir="src/main/resources">
+                                    <include name="*.properties"/>
+                                </fileset>
+                            </copy>
+                        </target>
+                    </configuration>
+                    <goals>
+                        <goal>run</goal>
+                    </goals>
+                </execution>
+            </executions>
+        </plugins>
+    </build>
 </project>

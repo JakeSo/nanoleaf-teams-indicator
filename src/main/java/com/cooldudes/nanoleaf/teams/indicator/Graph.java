@@ -24,9 +24,10 @@ import java.util.*;
  */
 public class Graph {
 
+    private static final String CONFIG_DIR = System.getProperty("user.dir") + File.separator + "resources" + File.separator;
     private static final String GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0";
-    private static final String OAUTH_PROPS_PATH = "src/main/resources/oAuth.properties";
-    private static final String SUBSCRIPTION_PROPS_PATH = "src/main/resources/subscription.properties";
+    private static final String OAUTH_PROPS_PATH = CONFIG_DIR + "oAuth.properties";
+    private static final String SUBSCRIPTION_PROPS_PATH = CONFIG_DIR + "subscription.properties";
     private static Properties oauthProps;
     private static Properties subscriptionProps;
     private static IAccount account;

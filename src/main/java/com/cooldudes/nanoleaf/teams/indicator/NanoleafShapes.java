@@ -4,6 +4,7 @@ import io.github.rowak.nanoleafapi.NanoleafException;
 import io.github.rowak.nanoleafapi.util.NanoleafDeviceMeta;
 import io.github.rowak.nanoleafapi.util.NanoleafSetup;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.URI;
@@ -21,6 +22,9 @@ import java.util.Scanner;
  * presence.
  */
 public class NanoleafShapes implements StatusChangeHandler {
+
+    private static final String CONFIG_DIR = System.getProperty("user.dir") + File.separator + "resources" + File.separator;
+    private static final String PROPS_PATH = CONFIG_DIR + "nanoleaf.properties";
     private static final int API_PORT = 16021;
     private String baseUrl;
     private final HttpClient client;
@@ -112,7 +116,7 @@ public class NanoleafShapes implements StatusChangeHandler {
             properties.setProperty("ip", ip);
             String accessToken = NanoleafSetup.createAccessToken(ip, ourNano.getPort());
             properties.setProperty("accessToken", accessToken);
-            properties.store(new FileOutputStream("src/main/resources/nanoleaf.properties"), null);
+            properties.store(new FileOutputStream(PROPS_PATH), null);
             return new NanoleafShapes(ip, accessToken);
         } catch (NanoleafException | IOException e) {
             throw new RuntimeException("Error searching for device: " + e.getMessage(), e);
