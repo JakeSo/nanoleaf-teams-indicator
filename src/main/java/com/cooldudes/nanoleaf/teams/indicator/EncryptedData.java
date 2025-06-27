@@ -6,8 +6,8 @@ import net.minidev.json.JSONObject;
 import javax.crypto.*;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.security.*;
 import java.util.Arrays;
 import java.util.Base64;
@@ -18,7 +18,6 @@ public class EncryptedData {
     private final String dataSignature;
     private final String dataKey;
     private final String encryptionCertificateId;
-    private final String encryptionCertificateThumbprint;
 
 
     public EncryptedData(JSONObject json) {
@@ -26,7 +25,7 @@ public class EncryptedData {
         this.dataSignature = json.getAsString("dataSignature");
         this.dataKey = json.getAsString("dataKey");
         this.encryptionCertificateId = json.getAsString("encryptionCertificateId");
-        this.encryptionCertificateThumbprint = json.getAsString("encryptionCertificateThumbprint");
+        String encryptionCertificateThumbprint = json.getAsString("encryptionCertificateThumbprint");
     }
 
     public Presence decryptData() throws Exception {
@@ -46,16 +45,16 @@ public class EncryptedData {
     private byte[] decryptSymmetricKey() throws Exception {
         Properties properties = new Properties();
         String storepass; //password used to open the jks store
-        try (FileInputStream is = new FileInputStream("src/main/resources/keystore.properties")) {
+        try (InputStream is = EncryptedData.class.getResourceAsStream("/keystore.properties")) {
             properties.load(is);
             storepass = properties.getProperty("pass");
         } catch (Exception e) {
             throw new Exception("Could not read properties for keystore", e);
         }
-        String storename = "src/main/resources/keystore.jks"; //name/path of the jks store
+        String storename = "/keystore.jks"; //name/path of the jks store
         try {
             KeyStore ks = KeyStore.getInstance("JKS");
-            ks.load(new FileInputStream(storename), storepass.toCharArray());
+            ks.load(EncryptedData.class.getResourceAsStream(storename), storepass.toCharArray());
             Key asymmetricKey = ks.getKey(this.encryptionCertificateId, storepass.toCharArray());
             byte[] encryptedSymmetricKey = Base64.getDecoder().decode(this.dataKey);
             Cipher cipher = Cipher.getInstance("RSA/ECB/OAEPWithSHA1AndMGF1Padding");

@@ -1,18 +1,14 @@
 package com.cooldudes.nanoleaf.teams.indicator;
 
-import io.github.rowak.nanoleafapi.NanoleafException;
-import io.github.rowak.nanoleafapi.util.NanoleafDeviceMeta;
-import io.github.rowak.nanoleafapi.util.NanoleafSetup;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import javax.jmdns.JmDNS;
+import javax.jmdns.ServiceInfo;
+import java.io.*;
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Scanner;
@@ -22,9 +18,9 @@ import java.util.Scanner;
  * presence.
  */
 public class NanoleafShapes implements StatusChangeHandler {
-
     private static final String CONFIG_DIR = System.getProperty("user.dir") + File.separator + "resources" + File.separator;
     private static final String PROPS_PATH = CONFIG_DIR + "nanoleaf.properties";
+    private static final String SERVICE_TYPE = "_nanoleafapi._tcp.local.";
     private static final int API_PORT = 16021;
     private String baseUrl;
     private final HttpClient client;
@@ -48,80 +44,115 @@ public class NanoleafShapes implements StatusChangeHandler {
 
     /***
      * Creates a new NanoleafShapes
-     * 
+     *
      * @param ip        IP Address of the Nanoleaf Device
      * @param authToken Authorization token received from Nanoleaf
      */
     public NanoleafShapes(String ip, String authToken) {
-        // Check if the IP is IPv6
-        if (ip.contains(":")) {
-            ip = "[" + ip + "]";
-        }
-        // Format the base URL for API requests
         if (authToken == null || authToken.isEmpty()) {
-            throw new IllegalArgumentException("Auth token cannot be null or empty");
+            authToken = generateAuthToken(ip);
+            writePropsToFile(ip, authToken);
         }
         this.baseUrl = String.format("http://%s:%d/api/v1/%s", ip, API_PORT, authToken);
-        this.client = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .build();
+        this.client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    }
+
+    public static NanoleafShapes fromPropertiesFile() {
+        Properties props = new Properties();
+        try (InputStream in = new FileInputStream(PROPS_PATH)) {
+            props.load(in);
+            String ip = props.getProperty("ip");
+            String token = props.getProperty("accessToken");
+            if (ip != null && token != null) {
+                return new NanoleafShapes(ip, token);
+            } else {
+                return null;
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read properties file", e);
+        }
+    }
+
+    private void writePropsToFile(String ip, String accessToken) {
+        Properties props = new Properties();
+        props.setProperty("ip", ip);
+        props.setProperty("accessToken", accessToken);
+        try (FileOutputStream out = new FileOutputStream(PROPS_PATH)) {
+            props.store(out, null);
+        } catch (IOException e) {
+            System.err.println("Could not write Nanoleaf props to file");
+        }
     }
 
     /**
      * Pair and generate a new auth token (hold controller power button 5–7 s first)
      */
-    public static String generateAuthToken(String ip) throws IOException, InterruptedException {
+    public static String generateAuthToken(String ip) {
+        System.out.println("Hold power button until lights flash, then hit Enter.");
+        Scanner scanner = new Scanner(System.in);
+        scanner.nextLine();
+        scanner.close();
         String url = String.format("http://%s:%d/api/v1/new", ip, API_PORT);
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .POST(HttpRequest.BodyPublishers.noBody())
-                .build();
-        HttpResponse<String> resp = HttpClient.newHttpClient()
-                .send(req, HttpResponse.BodyHandlers.ofString());
-        // Response JSON: {"auth_token":"..."}
-        return resp.body()
-                .replaceAll(".*\"auth_token\"\\s*:\\s*\"([^\"]+)\".*", "$1");
+        HttpRequest req = HttpRequest.newBuilder().uri(URI.create(url)).POST(HttpRequest.BodyPublishers.noBody()).build();
+
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+            return resp.body().replaceAll(".*\"auth_token\"\s*:\s*\"([^\"]+)\".*", "$1");
+        } catch (Exception e) {
+            throw new RuntimeException("Auth request failed: " + e.getMessage(), e);
+        }
     }
 
     /**
      * Looks for devices and returns the first one. Gives the user 3 chances to
      * search.
-     * 
+     *
      * @return the device if found, null otherwise
      */
-    public static NanoleafShapes findFirst() {
-        Properties properties = new Properties();
+    public static NanoleafShapes findDevice() {
+        int retries = 0;
         Scanner scanner = new Scanner(System.in);
-        try {
-            NanoleafDeviceMeta ourNano = null;
-            int retries = 0;
-            while (ourNano == null) {
-                System.out.println(
-                        "Please hold the power button on the Nanoleaf until the lights start flashing, then hit Enter");
-                scanner.nextLine();
-                List<NanoleafDeviceMeta> devices = NanoleafSetup.findNanoleafDevices(5000);
-                if (devices.isEmpty()) {
-                    retries++;
-                    if (retries > 2) {
-                        System.out.println("Exceeded acceptable amount of retries.");
-                        return null;
-                    }
-                    System.out.println("Could not find Nanoleaf. Please try again.");
-                } else {
-                    ourNano = devices.get(0);
-                }
-            }
-            scanner.close();
-            String ip = ourNano.getDeviceId();
-            properties.setProperty("ip", ip);
-            String accessToken = NanoleafSetup.createAccessToken(ip, ourNano.getPort());
-            properties.setProperty("accessToken", accessToken);
-            properties.store(new FileOutputStream(PROPS_PATH), null);
-            return new NanoleafShapes(ip, accessToken);
-        } catch (NanoleafException | IOException e) {
-            throw new RuntimeException("Error searching for device: " + e.getMessage(), e);
+        while (retries < 3) {
+            System.out.println("Ensure Nanoleaf is on and connected, then hit Enter.");
+            scanner.nextLine();
+            String ip = findDeviceIPByUserSelection();
+            if (ip != null) return new NanoleafShapes(ip, null);
+            System.out.println("Device not found. Retry.");
+            retries++;
         }
+        System.out.println("Max retries exceeded.");
+        return null;
     }
+
+    private static String findDeviceIPByUserSelection() {
+        try (JmDNS jmdns = JmDNS.create(InetAddress.getLocalHost())) {
+            ServiceInfo[] services = jmdns.list(SERVICE_TYPE, 5000);
+            if (services.length == 0) {
+                System.out.println("No services found.");
+                return null;
+            }
+
+            System.out.println("Found devices:");
+            for (int i = 0; i < services.length; i++) {
+                System.out.printf("[%d] %s (%s)%n", i, services[i].getName(), services[i].getHostAddresses()[0]);
+            }
+
+            System.out.print("Select a device by number: ");
+            Scanner scanner = new Scanner(System.in);
+            int choice = scanner.nextInt();
+            scanner.close();
+
+            if (choice >= 0 && choice < services.length) {
+                return services[choice].getHostAddresses()[0];
+            } else {
+                System.out.println("Invalid choice.");
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return null;
+    }
+
 
     private HttpRequest.Builder reqBuilder(String path) {
         return HttpRequest.newBuilder()
@@ -141,7 +172,7 @@ public class NanoleafShapes implements StatusChangeHandler {
 
     /**
      * Sets the power state of the device.
-     * 
+     *
      * @param on true to power on, false to power off
      * @throws IOException          if network error occurs
      * @throws InterruptedException if interrupted
@@ -227,7 +258,7 @@ public class NanoleafShapes implements StatusChangeHandler {
                 setPower(false);
             }
         } catch (IOException e) {
-            NanoleafShapes newNano = findFirst();
+            NanoleafShapes newNano = findDevice();
             if (newNano == null) {
                 throw new RuntimeException("Lost connection to device");
             }
@@ -240,7 +271,7 @@ public class NanoleafShapes implements StatusChangeHandler {
 
     /**
      * Gets the defined effect palette colors for a given Presence.
-     * 
+     *
      * @param userPresence a Presence to retrieve the color(s) for
      * @return an array containing 1 or more colors
      * @see com.cooldudes.nanoleaf.teams.indicator.NanoleafEffect.PaletteColor

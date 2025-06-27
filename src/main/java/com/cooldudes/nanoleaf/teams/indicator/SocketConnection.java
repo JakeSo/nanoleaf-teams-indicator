@@ -10,9 +10,8 @@ import com.pusher.client.connection.ConnectionStateChange;
 import net.minidev.json.JSONObject;
 
 import javax.naming.ConfigurationException;
-import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Properties;
 
 /**
@@ -20,8 +19,6 @@ import java.util.Properties;
  */
 public class SocketConnection {
 
-    private static final String CONFIG_DIR = System.getProperty("user.dir") + File.separator + "resources" + File.separator;
-    private static final String PROPS_PATH = CONFIG_DIR + "pusher.properties";
     private String PUSHER_KEY;
     private String PUSHER_CLUSTER;
     private final Pusher pusher;
@@ -100,6 +97,7 @@ public class SocketConnection {
                 } catch (Exception e) {
                     System.err.println("Error ensuring active subscription: " + e.getMessage());
                     disconnect();
+                    System.exit(0);
                 }
             }
 
@@ -117,13 +115,16 @@ public class SocketConnection {
      * @throws IOException if file doesn't exist or cannot be read
      */
     private void setupProperties() throws IOException {
-        FileReader reader = new FileReader(PROPS_PATH);
-        // create properties object
-        Properties p = new Properties();
-        p.load(reader);
+        try (InputStream is = SocketConnection.class.getResourceAsStream("/pusher.properties")) {
+            // create properties object
+            Properties p = new Properties();
+            p.load(is);
 
-        PUSHER_KEY = p.getProperty("KEY");
-        PUSHER_CLUSTER = p.getProperty("CLUSTER");
+            PUSHER_KEY = p.getProperty("KEY");
+            PUSHER_CLUSTER = p.getProperty("CLUSTER");
+        } catch (Exception e) {
+            throw new RuntimeException("Could not get Pusher properties: " + e.getMessage(), e);
+        }
 
     }
 
