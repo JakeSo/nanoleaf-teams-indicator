@@ -250,7 +250,7 @@ public class NanoleafShapes implements StatusChangeHandler {
     public void handleStatusChange(Presence userPresence) {
 
         try {
-            if (!(userPresence.availability.equals("Offline") && userPresence.activity.equals("OutOfOffice"))) {
+            if (!(userPresence.availability.equals("Offline"))) {
                 NanoleafEffect.PaletteColor[] palette = getPaletteColors(userPresence);
                 NanoleafEffect effect = new NanoleafEffect(palette);
                 displayEffect(effect);
