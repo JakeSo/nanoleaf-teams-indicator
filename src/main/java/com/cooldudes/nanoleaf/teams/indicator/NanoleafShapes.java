@@ -250,6 +250,16 @@ public class NanoleafShapes implements StatusChangeHandler {
     public void handleStatusChange(Presence userPresence) {
 
         try {
+            // Format status string for display
+            String statusText = formatPresenceStatus(userPresence);
+            System.out.println("Status changed: " + statusText);
+
+            // Update system tray
+            SystemTrayManager.updateStatus(statusText);
+            SystemTrayManager.showNotification("Teams Status Changed",
+                statusText,
+                java.awt.TrayIcon.MessageType.INFO);
+
             if (!(userPresence.availability.equals("Offline"))) {
                 NanoleafEffect.PaletteColor[] palette = getPaletteColors(userPresence);
                 NanoleafEffect effect = new NanoleafEffect(palette);
@@ -258,8 +268,14 @@ public class NanoleafShapes implements StatusChangeHandler {
                 setPower(false);
             }
         } catch (IOException e) {
+            SystemTrayManager.showNotification("Connection Lost",
+                "Reconnecting to Nanoleaf device...",
+                java.awt.TrayIcon.MessageType.WARNING);
             NanoleafShapes newNano = findDevice();
             if (newNano == null) {
+                SystemTrayManager.showNotification("Error",
+                    "Lost connection to Nanoleaf device",
+                    java.awt.TrayIcon.MessageType.ERROR);
                 throw new RuntimeException("Lost connection to device");
             }
             this.baseUrl = newNano.baseUrl;
@@ -267,6 +283,23 @@ public class NanoleafShapes implements StatusChangeHandler {
         } catch (InterruptedException e) {
             throw new RuntimeException("Error updating effect: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Formats a Presence object into a human-readable status string.
+     *
+     * @param presence the Presence to format
+     * @return a formatted status string
+     */
+    private static String formatPresenceStatus(Presence presence) {
+        if (presence.activity.equals("OutOfOffice")) {
+            return "Out of Office";
+        }
+
+        // Convert camelCase to space-separated words
+        String availability = presence.availability.replaceAll("(\\p{Lower})(\\p{Upper})", "$1 $2");
+
+        return availability;
     }
 
     /**
